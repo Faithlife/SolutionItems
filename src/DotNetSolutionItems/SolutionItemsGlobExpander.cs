@@ -47,9 +47,9 @@ internal static class SolutionItemsGlobExpander
 		Glob.Files(new DirectoryInfo(solutionDirectory), pattern, GlobOptions.None)
 			.Select(x => ToRelativePath(solutionDirectory, x.FullName));
 
-	private static GeneratedSolutionFolder[] CreateFolders(IReadOnlyList<string> files)
+	private static GeneratedSolutionFolder[] CreateFolders(string[] files)
 	{
-		if (files.Count == 0)
+		if (files.Length == 0)
 			return [];
 
 		var folderFiles = new SortedDictionary<string, List<string>>(StringComparer.Ordinal) { ["/Solution Items/"] = [] };

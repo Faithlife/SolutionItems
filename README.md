@@ -16,8 +16,8 @@ Add globs to a solution:
 
 ```pwsh
 dotnet-solution-items add "*"
-dotnet-solution-items add ".github/workflows/*"
-dotnet-solution-items add "!build.sh"
+dotnet-solution-items add ".github/workflows/*" "!build.sh"
+dotnet-solution-items add "*.md; *.props"
 ```
 
 The tool stores the globs in a marker comment and owns the contiguous `Folder` block immediately below it.
@@ -37,9 +37,14 @@ The tool stores the globs in a marker comment and owns the contiguous `Folder` b
 - `list` prints configured globs and the files they match.
 - `update` refreshes the generated solution items. If the marker comment is missing, it writes a warning and leaves the solution unchanged.
 
+`add` and `remove` accept one or more glob arguments. Each argument may also contain semicolon-separated globs, and both forms are treated the same way.
+
+On the first `add`, if the solution already has an unmarked `Solution Items` block, the command fails with a warning because non-matching existing items would be removed. Pass `--force` to replace that block with the generated one.
+
 ## Options
 
 - `--solution <path>` points to a specific `.slnx` file or to a directory containing exactly one `.slnx` file.
 - `--limit <n>` changes the maximum total generated `Folder` and `File` elements. The default is `100`.
+- `--force` allows `add` to replace an existing unmarked `Solution Items` block when creating the marker comment.
 
 Globs are rooted at the solution directory and match files only. Solution files and `*.csproj` files are automatically excluded.

@@ -106,6 +106,82 @@ internal sealed class SolutionItemsCliTests
 	}
 
 	[Test]
+	public async Task FirstAddFailsWhenUnmarkedSolutionItemsBlockExists()
+	{
+		using var directory = TemporarySolutionDirectory.Create();
+		directory.WriteFile("repo.slnx", """
+			<Solution>
+			  <Folder Name="/Solution Items/">
+			    <File Path="old.txt" />
+			  </Folder>
+			  <Project Path="src/App/App.csproj" />
+			</Solution>
+			""");
+		var originalSolution = directory.ReadFile("repo.slnx");
+
+		var result = await CliInvocation.InvokeAsync(["add", "*"], directory.RootPath);
+
+		using (Assert.EnterMultipleScope())
+		{
+			Assert.That(result.ExitCode, Is.EqualTo(1));
+			Assert.That(result.StandardError, Does.Contain("Warning"));
+			Assert.That(result.StandardError, Does.Contain("--force"));
+			Assert.That(directory.ReadFile("repo.slnx"), Is.EqualTo(originalSolution));
+		}
+	}
+
+	[Test]
+	public async Task FirstAddForceReplacesUnmarkedSolutionItemsBlock()
+	{
+		using var directory = TemporarySolutionDirectory.Create();
+		directory.WriteFile("repo.slnx", """
+			<Solution>
+			  <Folder Name="/Solution Items/">
+			    <File Path="old.txt" />
+			  </Folder>
+			  <Project Path="src/App/App.csproj" />
+			</Solution>
+			""");
+		directory.WriteFile("README.md", "readme");
+		directory.WriteFile("old.txt", "old");
+
+		var result = await CliInvocation.InvokeAsync(["add", "README.md", "--force"], directory.RootPath);
+
+		using (Assert.EnterMultipleScope())
+		{
+			Assert.That(result.ExitCode, Is.Zero);
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<!-- dotnet-solution-items: README.md -->"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"README.md\" />"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Not.Contain("old.txt"));
+		}
+	}
+
+	[Test]
+	public async Task AddAcceptsMultipleAndSemicolonSeparatedGlobs()
+	{
+		using var directory = TemporarySolutionDirectory.Create();
+		directory.WriteFile("repo.slnx", """
+			<Solution>
+			  <Project Path="src/App/App.csproj" />
+			</Solution>
+			""");
+		directory.WriteFile("README.md", "readme");
+		directory.WriteFile("Directory.Build.props", "<Project />");
+		directory.WriteFile(".github/workflows/build.yaml", "build");
+
+		var result = await CliInvocation.InvokeAsync(["add", "*.md; *.props", ".github/workflows/*"], directory.RootPath);
+
+		using (Assert.EnterMultipleScope())
+		{
+			Assert.That(result.ExitCode, Is.Zero);
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<!-- dotnet-solution-items: *.md; *.props; .github/workflows/* -->"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"README.md\" />"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"Directory.Build.props\" />"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\".github/workflows/build.yaml\" />"));
+		}
+	}
+
+	[Test]
 	public async Task AddDoesNotDuplicateExistingGlob()
 	{
 		using var directory = TemporarySolutionDirectory.Create();
@@ -149,6 +225,34 @@ internal sealed class SolutionItemsCliTests
 			Assert.That(result.ExitCode, Is.Zero);
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<!-- dotnet-solution-items: * -->"));
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"build.ps1\" />"));
+		}
+	}
+
+	[Test]
+	public async Task RemoveAcceptsMultipleAndSemicolonSeparatedGlobs()
+	{
+		using var directory = TemporarySolutionDirectory.Create();
+		directory.WriteFile("repo.slnx", """
+			<Solution>
+			  <!-- dotnet-solution-items: *; *.md; docs/*; !README.md -->
+			  <Folder Name="/Solution Items/">
+			    <File Path="old.txt" />
+			  </Folder>
+			</Solution>
+			""");
+		directory.WriteFile("README.md", "readme");
+		directory.WriteFile("build.ps1", "build");
+		directory.WriteFile("docs/guide.md", "guide");
+
+		var result = await CliInvocation.InvokeAsync(["remove", "*.md; docs/*", "!README.md"], directory.RootPath);
+
+		using (Assert.EnterMultipleScope())
+		{
+			Assert.That(result.ExitCode, Is.Zero);
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<!-- dotnet-solution-items: * -->"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"README.md\" />"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"build.ps1\" />"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Not.Contain("docs/guide.md"));
 		}
 	}
 

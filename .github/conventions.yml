@@ -1,0 +1,3 @@
+conventions:
+  - path: Faithlife/CodingGuidelines/conventions/faithlife-license-mit
+  - path: Faithlife/CodingGuidelines/conventions/faithlife-csharp-library

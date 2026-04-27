@@ -10,16 +10,19 @@ internal static class SolutionItemsXmlUpdater
 	public static XComment? FindMarkerComment(XDocument document) =>
 		document.Root?.Nodes().OfType<XComment>().FirstOrDefault(IsMarkerComment);
 
+	public static bool HasUnmarkedSolutionItemsBlock(XDocument document) =>
+		FindMarkerComment(document) is null && FindFirstOwnedFolder(document) is not null;
+
 	public static IReadOnlyList<string> GetGlobs(XComment markerComment) =>
 		SolutionItemsConfiguration.ParseGlobs(markerComment.Value);
 
-	public static void Update(SolutionItemsDocument solutionDocument, IReadOnlyList<string> globs, GeneratedSolutionItems generatedItems)
+	public static void Update(SolutionItemsDocument solutionDocument, IReadOnlyList<string> globs, GeneratedSolutionItems generatedItems, bool forceExistingSolutionItemsBlock = false)
 	{
 		var markerComment = FindMarkerComment(solutionDocument.Document);
 		if (markerComment is null)
 		{
 			markerComment = new XComment(SolutionItemsConfiguration.FormatCommentValue(globs));
-			InsertMarkerComment(solutionDocument.Document, markerComment);
+			InsertMarkerComment(solutionDocument.Document, markerComment, forceExistingSolutionItemsBlock);
 		}
 		else
 		{
@@ -42,9 +45,22 @@ internal static class SolutionItemsXmlUpdater
 	private static bool IsMarkerComment(XComment comment) =>
 		comment.Value.Trim().StartsWith(SolutionItemsConfiguration.MarkerPrefix, StringComparison.Ordinal);
 
-	private static void InsertMarkerComment(XDocument document, XComment markerComment)
+	private static XElement? FindFirstOwnedFolder(XDocument document) =>
+		document.Root?.Elements().FirstOrDefault(IsOwnedFolder);
+
+	private static void InsertMarkerComment(XDocument document, XComment markerComment, bool forceExistingSolutionItemsBlock)
 	{
 		var root = document.Root ?? throw new InvalidOperationException("The solution XML document has no root element.");
+		var firstOwnedFolder = FindFirstOwnedFolder(document);
+		if (firstOwnedFolder is not null)
+		{
+			if (!forceExistingSolutionItemsBlock)
+				throw new InvalidOperationException("Warning: an existing Solution Items block was found. Adding globs would replace that block and remove items that do not match the globs. Re-run with --force to continue.");
+
+			firstOwnedFolder.AddBeforeSelf(markerComment);
+			return;
+		}
+
 		var firstProject = root.Elements("Project").FirstOrDefault();
 		if (firstProject is null)
 			root.Add(new XText("\n  "), markerComment, new XText("\n"));

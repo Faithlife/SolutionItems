@@ -37,11 +37,12 @@ The root command should support these global options for every subcommand:
 
 - `--solution <path>`: optional solution file or directory override. If omitted, use the current directory. If the value is a directory, require exactly one `.slnx` file in that directory. If the value is a file, require that it exists and ends with `.slnx`.
 - `--limit <n>`: maximum total generated `Folder` and `File` elements. Defaults to `100`. Reject values less than `1`.
+- `--force`: supported by `add`; allows the first `add` to replace an existing unmarked `Solution Items` block.
 
 Commands:
 
-- `add <glob>`: add the glob to the declaration if it is not already present, then update the managed solution items.
-- `remove <glob>`: remove the matching glob from the declaration, then update the managed solution items. If the last glob is removed, remove the marker comment and the managed folder block.
+- `add <glob...>`: add the globs to the declaration if they are not already present, then update the managed solution items.
+- `remove <glob...>`: remove the matching globs from the declaration, then update the managed solution items. If the last glob is removed, remove the marker comment and the managed folder block.
 - `list`: print the configured globs and the files they currently expand to.
 - `update`: rewrite the managed solution items from the configured globs.
 
@@ -68,9 +69,10 @@ Suggested internal type:
 Glob handling should be explicit and deterministic.
 
 - Split the marker comment payload on semicolons.
+- Split `add` and `remove` arguments on semicolons too, so `add "*.md; *.props"` and `add "*.md" "*.props"` are equivalent.
 - Trim whitespace around each glob.
 - Ignore empty entries when reading existing comments.
-- Preserve glob text when writing the comment, joined as `; `.
+- Preserve glob text when writing the comment, joined with a semicolon followed by a space.
 - Treat a leading `!` as an exclusion glob. The stored glob remains prefixed with `!`, but the matcher should evaluate the remainder.
 - Evaluate include globs in declaration order and then remove any paths matched by exclusion globs.
 - Automatically exclude `.slnx` files and `*.csproj` files even if they match an include glob.
@@ -100,6 +102,7 @@ Rules:
 - Use `System.Xml.Linq` to parse and update XML rather than editing XML with string slicing.
 - Load with whitespace preservation so unrelated parts of the solution remain stable where possible.
 - If the marker comment is missing and `add` creates the first glob, insert the marker comment and generated folders before the first `Project` element, or at the end of the root when no projects exist.
+- If the marker comment is missing and an unmarked `Solution Items` block already exists, `add` should fail with a warning that non-matching items would be removed. `add --force` should insert the marker before that block and replace it with generated folders.
 - If the marker comment exists, replace only the owned folder block after it.
 - If no files match the current globs, keep the marker comment and omit the generated folder block.
 - If the glob list becomes empty, remove the marker comment and the owned folder block.
@@ -121,20 +124,23 @@ The limit is intentionally conservative so a broad glob such as `**/*` cannot ac
 
 ## Command Behavior
 
-`add <glob>`:
+`add <glob...>`:
 
 - Resolve the solution.
 - Read the existing marker comment if present.
 - Append the glob if it is not already present using exact text comparison after trimming.
+- Accept multiple arguments and semicolon-separated globs.
 - Create the marker comment if needed.
+- If an unmarked `Solution Items` block already exists, fail unless `--force` is supplied.
 - Update the managed XML block.
 - Print whether the glob was added or already present, plus the number of generated folders and files.
 
-`remove <glob>`:
+`remove <glob...>`:
 
 - Resolve the solution.
 - Fail if the marker comment is missing.
-- Remove an existing glob using exact text comparison after trimming.
+- Remove existing globs using exact text comparison after trimming.
+- Accept multiple arguments and semicolon-separated globs.
 - If the glob was not present, return success with an "already absent" message and leave the solution unchanged.
 - If the last glob was removed, remove the marker comment and managed block.
 - Otherwise update the managed XML block.
@@ -178,7 +184,7 @@ Create a repository layout similar to RepoConventions:
 - `Directory.Packages.props`
 - `README.md`
 - `ReleaseNotes.md`
-- `dotnet-solution-items.slnx`
+- `SolutionItems.slnx`
 
 Project metadata:
 
@@ -197,8 +203,12 @@ Favor integration-style tests that create temporary directories and real `.slnx`
 - `--solution` accepts an exact `.slnx` file.
 - `--solution` accepts a directory containing exactly one `.slnx` file.
 - `add` creates the marker comment and managed block in a solution with projects but no solution items.
+- First `add` fails when an unmarked `Solution Items` block already exists.
+- `add --force` replaces an unmarked `Solution Items` block with the generated block.
+- `add` accepts multiple arguments and semicolon-separated globs.
 - `add` does not duplicate an existing glob.
 - `remove` removes one glob and updates the generated block.
+- `remove` accepts multiple arguments and semicolon-separated globs.
 - `remove` removes the marker comment and generated block when the last glob is removed.
 - `list` reports configured globs and expanded files without writing the solution.
 - `update` adds new matching files and removes files that no longer match.
@@ -218,5 +228,5 @@ Favor integration-style tests that create temporary directories and real `.slnx`
 - Add README quick start instructions for installing or running with `dnx`.
 - Document the marker comment format and the semicolon-separated glob list.
 - Document rooted glob behavior, exclusion globs, automatic exclusions, and the default limit.
-- Include examples for `add`, `remove`, `list`, `update`, `--solution`, and `--limit`.
+- Include examples for `add`, `add --force`, `remove`, `list`, `update`, `--solution`, and `--limit`.
 - Add a short troubleshooting section for ambiguous solution discovery and limit failures.
