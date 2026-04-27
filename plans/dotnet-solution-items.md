@@ -80,7 +80,7 @@ Glob handling should be explicit and deterministic.
 - Return only files as `File` entries. Directories exist only as generated `Folder` entries needed to contain those files.
 - If the `Glob` API returns directories for a pattern, filter them out before generating the managed XML block.
 - Normalize generated paths to forward slashes, relative to `SolutionDirectory`.
-- Use ordinal, case-insensitive path de-duplication on Windows and ordinal de-duplication on non-Windows platforms. Always write paths in ordinal ascending order for stable output.
+- Use ordinal, case-insensitive path de-duplication on Windows and ordinal de-duplication on non-Windows platforms. Write generated folders in ordinal ascending order and file entries within each folder in invariant culture order for stable, browsable output.
 
 Glob identity for `add` and `remove` should use exact text after trimming whitespace, not slash or path normalization. For example, ` docs/*.md ` and `docs/*.md` are the same stored glob after trimming, but `docs/*.md` and `docs\*.md` are different, and `README.md` and `./README.md` are different. This keeps the command from rewriting user-entered glob text while still avoiding duplicate entries caused only by surrounding whitespace.
 

@@ -67,7 +67,7 @@ internal static class SolutionItemsGlobExpander
 			AddAncestorFolders(folderFiles, folderPath);
 		}
 
-		return folderFiles.Select(x => new GeneratedSolutionFolder(x.Key, x.Value.Order(StringComparer.Ordinal).ToArray())).ToArray();
+		return folderFiles.Select(x => new GeneratedSolutionFolder(x.Key, x.Value.Order(StringComparer.InvariantCulture).ToArray())).ToArray();
 	}
 
 	private static void AddAncestorFolders(SortedDictionary<string, List<string>> folderFiles, string folderPath)

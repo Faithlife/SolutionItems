@@ -98,8 +98,8 @@ internal sealed class SolutionItemsCliTests
 				<Solution>
 				  <!-- dotnet-solution-items: * -->
 				  <Folder Name="/Solution Items/">
-				    <File Path="README.md" />
 				    <File Path="build.ps1" />
+				    <File Path="README.md" />
 				  </Folder>
 				  <Project Path="src/App/App.csproj" />
 				</Solution>
@@ -445,6 +445,28 @@ internal sealed class SolutionItemsCliTests
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("README.md"));
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Not.Contain("/Solution Items/docs/"));
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Not.Contain("docs/readme.md"));
+		}
+	}
+
+	[Test]
+	public async Task FilesWithinGeneratedFoldersUseInvariantSortOrder()
+	{
+		using var directory = TemporarySolutionDirectory.Create();
+		directory.WriteFile("repo.slnx", """
+			<Solution>
+			  <!-- dotnet-solution-items: docs/* -->
+			</Solution>
+			""");
+		directory.WriteFile("docs/B.txt", "upper");
+		directory.WriteFile("docs/a.txt", "lower");
+
+		var result = await CliInvocation.InvokeAsync(["update"], directory.RootPath);
+		var solutionText = directory.ReadFile("repo.slnx");
+
+		using (Assert.EnterMultipleScope())
+		{
+			Assert.That(result.ExitCode, Is.Zero);
+			Assert.That(solutionText.IndexOf("docs/a.txt", StringComparison.Ordinal), Is.LessThan(solutionText.IndexOf("docs/B.txt", StringComparison.Ordinal)));
 		}
 	}
 
