@@ -20,14 +20,15 @@ The tool is intended to make files such as `.editorconfig`, repository documenta
 - Generate deterministic folder and file ordering so repeated `update` runs are stable.
 - Exclude solution files and C# project files automatically.
 - Enforce a default limit of 100 generated files and folders, with `--limit <n>` available when callers intentionally need more.
-- Provide `add`, `remove`, `list`, `update`, and `verify` commands.
+- Match only files, not directories, and create solution folders only as ancestors of matched files.
+- Provide `add`, `remove`, `list`, and `update` commands.
 
 ## Non-Goals
 
 - Do not support legacy `.sln` files in the first version.
 - Do not manage arbitrary solution folders outside the annotated `Solution Items` block.
 - Do not infer globs from existing solution items.
-- Do not add a watch mode, machine-readable output, or automatic Git commits yet.
+- Do not add a watch mode, verify mode, machine-readable output, or automatic Git commits yet.
 - Do not implement custom glob matching logic beyond the behavior needed to root and filter paths before passing patterns to `Glob`.
 
 ## CLI Surface
@@ -43,7 +44,6 @@ Commands:
 - `remove <glob>`: remove the matching glob from the declaration, then update the managed solution items. If the last glob is removed, remove the marker comment and the managed folder block.
 - `list`: print the configured globs and the files they currently expand to.
 - `update`: rewrite the managed solution items from the configured globs.
-- `verify`: return success only when the managed solution items already match the configured globs.
 
 With no arguments, show help. Support the standard `--help` and `--version` behavior from `System.CommandLine`.
 
@@ -74,13 +74,17 @@ Glob handling should be explicit and deterministic.
 - Treat a leading `!` as an exclusion glob. The stored glob remains prefixed with `!`, but the matcher should evaluate the remainder.
 - Evaluate include globs in declaration order and then remove any paths matched by exclusion globs.
 - Automatically exclude `.slnx` files and `*.csproj` files even if they match an include glob.
+- Evaluate matches against files only. A glob such as `*` matches files in the solution directory but does not add directories in the solution directory.
 - Return only files as `File` entries. Directories exist only as generated `Folder` entries needed to contain those files.
+- If the `Glob` API returns directories for a pattern, filter them out before generating the managed XML block.
 - Normalize generated paths to forward slashes, relative to `SolutionDirectory`.
 - Use ordinal, case-insensitive path de-duplication on Windows and ordinal de-duplication on non-Windows platforms. Always write paths in ordinal ascending order for stable output.
 
+Glob identity for `add` and `remove` should use exact text after trimming whitespace, not slash or path normalization. For example, ` docs/*.md ` and `docs/*.md` are the same stored glob after trimming, but `docs/*.md` and `docs\*.md` are different, and `README.md` and `./README.md` are different. This keeps the command from rewriting user-entered glob text while still avoiding duplicate entries caused only by surrounding whitespace.
+
 ## Managed XML Block
 
-The owned region starts at the `dotnet-solution-items:` comment and includes the immediately following contiguous `Folder` elements that represent `/Solution Items/` and its child folders.
+The owned region starts at the `dotnet-solution-items:` comment and includes the immediately following contiguous `Folder` elements that represent `/Solution Items/` and any child folders needed as ancestors of matched files.
 
 For a file such as `.github/workflows/build.yaml`, generate:
 
@@ -99,6 +103,7 @@ Rules:
 - If the marker comment exists, replace only the owned folder block after it.
 - If no files match the current globs, keep the marker comment and omit the generated folder block.
 - If the glob list becomes empty, remove the marker comment and the owned folder block.
+- Do not create empty `Folder` elements except as ancestors of folders that contain matched files.
 - Preserve unrelated `Project`, `Folder`, and other XML elements outside the owned block.
 - Emit generated XML using two-space indentation to match the `.slnx` examples used by RepoConventions.
 
@@ -144,18 +149,10 @@ The limit is intentionally conservative so a broad glob such as `**/*` cannot ac
 `update`:
 
 - Resolve the solution.
-- Fail if the marker comment is missing or has no usable globs.
+- If the marker comment is missing, write a warning and leave the solution unchanged.
+- If the marker comment has no usable globs, write a warning and leave the solution unchanged.
 - Regenerate the managed XML block.
 - Write the solution only if the content changed.
-
-`verify`:
-
-- Resolve the solution.
-- Fail if the marker comment is missing or has no usable globs.
-- Generate the expected managed XML block in memory.
-- Return `0` when the existing managed block matches exactly.
-- Return `1` and print a concise mismatch summary when the existing block differs.
-- Do not modify the solution.
 
 ## Internal Design
 
@@ -165,7 +162,7 @@ Suggested implementation units:
 - `ResolvedSolutionPath`: solution option and discovery logic.
 - `SolutionItemsConfiguration`: marker comment parsing, glob list updates, and comment formatting.
 - `SolutionItemsGlobExpander`: rooted glob evaluation, exclusion handling, automatic exclusions, sorting, and limit counting.
-- `SolutionItemsXmlUpdater`: XML owned-block detection, generation, update, and verification comparison.
+- `SolutionItemsXmlUpdater`: XML owned-block detection, generation, and update.
 - `GeneratedSolutionItems`: immutable result containing generated folders, files, counts, and display text.
 
 Keep each top-level C# type in its own file, matching the RepoConventions style.
@@ -205,11 +202,12 @@ Favor integration-style tests that create temporary directories and real `.slnx`
 - `remove` removes the marker comment and generated block when the last glob is removed.
 - `list` reports configured globs and expanded files without writing the solution.
 - `update` adds new matching files and removes files that no longer match.
-- `verify` succeeds for an up-to-date solution.
-- `verify` fails for missing, extra, or incorrectly ordered generated entries without modifying the solution.
+- `update` writes a warning and leaves the solution unchanged when the marker comment is missing.
 - Include and exclude globs interact correctly, including `!build.sh`.
 - `.slnx` and `*.csproj` files are excluded automatically.
+- `*` matches root-level files but does not add root-level directories as empty solution folders.
 - Nested folders are generated for nested matching files.
+- Directory glob matches do not create solution folders unless files inside those directories are matched.
 - Empty matches keep the marker comment but remove generated folders.
 - The default limit fails before writing when generated folders plus files reach `100`.
 - `--limit <n>` allows a deliberately larger generated block.
@@ -220,11 +218,5 @@ Favor integration-style tests that create temporary directories and real `.slnx`
 - Add README quick start instructions for installing or running with `dnx`.
 - Document the marker comment format and the semicolon-separated glob list.
 - Document rooted glob behavior, exclusion globs, automatic exclusions, and the default limit.
-- Include examples for `add`, `remove`, `list`, `update`, `verify`, `--solution`, and `--limit`.
+- Include examples for `add`, `remove`, `list`, `update`, `--solution`, and `--limit`.
 - Add a short troubleshooting section for ambiguous solution discovery and limit failures.
-
-## Open Decisions
-
-- Decide whether `update` should fail or quietly no-op when the marker comment is missing. The stricter behavior above keeps accidental rewrites visible.
-- Decide whether glob comparison should be exact after trimming or normalized for slash direction. Exact comparison is simpler and preserves user intent.
-- Decide whether `verify` should print a compact textual diff of the owned block or only a summary of missing and extra paths.
