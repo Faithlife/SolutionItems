@@ -75,7 +75,7 @@ Glob handling should be explicit and deterministic.
 - Preserve glob text when writing the comment, joined with a semicolon followed by a space.
 - Treat a leading `!` as an exclusion glob. The stored glob remains prefixed with `!`, but the matcher should evaluate the remainder.
 - Evaluate include globs in declaration order and then remove any paths matched by exclusion globs.
-- Automatically exclude `.slnx` files and `*.csproj` files even if they match an include glob.
+- Automatically exclude files ignored by Git, `.slnx` files, and `*.csproj` files even if they match an include glob.
 - Evaluate matches against files only. A glob such as `*` matches files in the solution directory but does not add directories in the solution directory.
 - Return only files as `File` entries. Directories exist only as generated `Folder` entries needed to contain those files.
 - If the `Glob` API returns directories for a pattern, filter them out before generating the managed XML block.

@@ -33,6 +33,7 @@ internal static class SolutionItemsGlobExpander
 		}
 
 		includedPaths.ExceptWith(excludedPaths);
+		includedPaths.ExceptWith(GitIgnoredPathFilter.GetIgnoredPaths(solutionDirectory, includedPaths));
 
 		var files = includedPaths.Order(StringComparer.Ordinal).ToArray();
 		var folders = CreateFolders(files);

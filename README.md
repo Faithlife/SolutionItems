@@ -47,4 +47,4 @@ On the first `add`, if the solution already has an unmarked `Solution Items` blo
 - `--limit <n>` changes the maximum total generated `Folder` and `File` elements. The default is `100`.
 - `--force` allows `add` to replace an existing unmarked `Solution Items` block when creating the marker comment.
 
-Globs are rooted at the solution directory and match files only. Solution files and `*.csproj` files are automatically excluded.
+Globs are rooted at the solution directory and match files only. Gitignored files, solution files, and `*.csproj` files are automatically excluded.

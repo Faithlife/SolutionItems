@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using NUnit.Framework;
 
 namespace DotNetSolutionItems.Tests;
@@ -392,6 +394,38 @@ internal sealed class SolutionItemsCliTests
 	}
 
 	[Test]
+	public async Task GitignoredFilesAreExcludedAutomatically()
+	{
+		using var directory = TemporarySolutionDirectory.Create();
+		RunGit(directory.RootPath, "init");
+		directory.WriteFile("repo.slnx", """
+			<Solution>
+			  <!-- dotnet-solution-items: **/* -->
+			</Solution>
+			""");
+		directory.WriteFile(".gitignore", """
+			bin/
+			*.tmp
+			""");
+		directory.WriteFile("README.md", "readme");
+		directory.WriteFile("debug.tmp", "debug");
+		directory.WriteFile("bin/output.txt", "output");
+		directory.WriteFile("docs/guide.md", "guide");
+
+		var result = await CliInvocation.InvokeAsync(["update"], directory.RootPath);
+
+		using (Assert.EnterMultipleScope())
+		{
+			Assert.That(result.ExitCode, Is.Zero);
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("README.md"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("docs/guide.md"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain(".gitignore"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Not.Contain("debug.tmp"));
+			Assert.That(directory.ReadFile("repo.slnx"), Does.Not.Contain("bin/output.txt"));
+		}
+	}
+
+	[Test]
 	public async Task StarMatchesRootFilesButNotRootFolders()
 	{
 		using var directory = TemporarySolutionDirectory.Create();
@@ -532,5 +566,26 @@ internal sealed class SolutionItemsCliTests
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<File Path=\"other.txt\" />"));
 			Assert.That(directory.ReadFile("repo.slnx"), Does.Contain("<Project Path=\"src/App/App.csproj\" />"));
 		}
+	}
+
+	private static void RunGit(string workingDirectory, params string[] arguments)
+	{
+		var startInfo = new ProcessStartInfo
+		{
+			FileName = "git",
+			WorkingDirectory = workingDirectory,
+			RedirectStandardError = true,
+			RedirectStandardOutput = true,
+			UseShellExecute = false,
+		};
+		foreach (var argument in arguments)
+			startInfo.ArgumentList.Add(argument);
+
+		using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Could not start git.");
+		var standardOutput = process.StandardOutput.ReadToEnd();
+		var standardError = process.StandardError.ReadToEnd();
+		process.WaitForExit();
+		if (process.ExitCode != 0)
+			throw new InvalidOperationException($"git {string.Join(' ', arguments)} failed with exit code {process.ExitCode}: {standardOutput}{standardError}");
 	}
 }
