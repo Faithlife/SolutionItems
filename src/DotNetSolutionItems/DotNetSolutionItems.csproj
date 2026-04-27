@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFrameworks>net8.0;net9.0;net10.0</TargetFrameworks>
+    <Description>Maintains Solution Items in .slnx files.</Description>
+    <PackageTags>dotnet solution slnx solution-items</PackageTags>
+    <IsPackable>true</IsPackable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotnet-solution-items</ToolCommandName>
+    <AssemblyName>dotnet-solution-items</AssemblyName>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="DotNetSolutionItems.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Glob" />
+    <PackageReference Include="System.CommandLine" />
+  </ItemGroup>
+
+</Project>
