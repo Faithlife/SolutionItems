@@ -10,6 +10,7 @@
     <ToolCommandName>dotnet-solution-items</ToolCommandName>
     <AssemblyName>dotnet-solution-items</AssemblyName>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <RewritePackageReadmeLinks>true</RewritePackageReadmeLinks>
   </PropertyGroup>
 
   <ItemGroup>
