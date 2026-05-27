@@ -1,5 +1,7 @@
 # dotnet-solution-items
 
+[![NuGet](https://img.shields.io/nuget/v/dotnet-solution-items.svg)](https://www.nuget.org/packages/dotnet-solution-items)
+
 Maintains the generated `Solution Items` folder in a `.slnx` file from a semicolon-separated glob list stored in an XML comment.
 
 ## Quick Start
